@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from collections import deque
+import time
 
 
 class PolicyNetwork(nn.Module):
@@ -22,7 +23,8 @@ def extract_features(state):
     return torch.tensor(features, dtype=torch.float32)
 
 
-def reinforce(env, policy, optimizer, num_episodes=1000, gamma=0.99, verbose=1):
+def reinforce(env, policy, optimizer, seed, num_episodes=1000, gamma=0.99, verbose=1):
+    start = time.time()
     rolling_window = deque(maxlen=100)
     results = []
     for episode in range(num_episodes):
@@ -63,5 +65,7 @@ def reinforce(env, policy, optimizer, num_episodes=1000, gamma=0.99, verbose=1):
         results.append(G)
         if episode % 1000 == 0 and verbose != 0:
             avg = sum(rolling_window) / len(rolling_window)
-            print(f"Episode {episode}, Loss: {policy_loss.item()}, G={G}")
+            print(
+                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}"
+            )
     return results

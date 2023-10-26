@@ -1,4 +1,5 @@
 import torch
+import time
 from collections import deque
 
 
@@ -49,16 +50,15 @@ def f(env, policy, gamma, delta, num_trials):
 
 
 def get_delta(episode):
-    return (2e-5 / (1 + episode * 2e-5)) ** 0.5
+    return (2e-5 / (1 + episode * 2e-5)) ** 0.25
 
 
 def get_alpha(episode):
     return 2e-6 / (1 + episode * 2e-5)
 
 
-def spsa(
-    env, policy, optimizer, num_episodes=20000, gamma=0.99, verbose=1, num_trials=100
-):
+def spsa(env, policy, seed, num_episodes=20000, gamma=0.99, verbose=1, num_trials=100):
+    start = time.time()
     rolling_window = deque(maxlen=1000)
     results = []
     delta = 0.1
@@ -70,26 +70,18 @@ def spsa(
             avg = 0
             if len(rolling_window) > 0:
                 avg = sum(rolling_window) / len(rolling_window)
-            # Update parameters using the gradient estimate
-
-            # optimizer.zero_grad()
-
-            # for param in policy.parameters():
-            #     param.grad = torch.zeros_like(param.data)
 
             for t, pert in zip(policy.parameters(), perts):
-                alpha = get_alpha(episode)
-                # if avg < -0.1:
-                #     alpha = 1e-6
-                avg = 0
-                t += (G - avg) * pert * get_delta(episode)
+                t += get_alpha(episode) * G * pert / get_delta(episode)
 
         # optimizer.step()
         rolling_window.append(G)
         results.append(G)
 
-        if episode % 100 == 0 and verbose != 0:
-            print(f"Episode {episode}, Average Reward: {avg}, G={G}")
+        if episode % 1000 == 0 and verbose != 0:
+            print(
+                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}"
+            )
 
     return results
 
