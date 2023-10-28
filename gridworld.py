@@ -2,12 +2,13 @@ import numpy as np
 
 
 class CustomGridWorld:
-    def __init__(self, size=4, slip_prob=0.2, max_len=100):
+    def __init__(self, size=4, slip_prob=0.2, max_len=100, **kwargs):
         """
         size: Dimension of the square grid.
         slip_prob: Probability of moving in a perpendicular direction.
         """
         self.size = size
+        self.n_actions = 4
         self.slip_prob = slip_prob
         self.state = (0, 0)
         self.goal = (self.size - 1, self.size - 1)
