@@ -1,6 +1,8 @@
 import torch
 import time
 from collections import deque
+from torch.nn import Module
+import gym
 
 
 def top_x_grad(env, policy, gamma, alpha, delta, avg, num_trials, num_perts, x):
@@ -18,31 +20,41 @@ def top_x_grad(env, policy, gamma, alpha, delta, avg, num_trials, num_perts, x):
     return log_G / x
 
 
-def f(env, policy, gamma, delta, num_trials):
+def perturb_policy(policy: Module, delta: float) -> tuple[Module, list, list]:
     perts = [torch.randn_like(t.data) for t in policy.parameters()]
     old_params = [t.clone() for t in policy.parameters()]
     for t, d in zip(policy.parameters(), perts):
         t.data += delta * d.data
-    G = []
-    for _ in range(num_trials):
-        state, _ = env.reset()
-        tdx = 0
-        G_new = 0
-        while True:
-            probs = policy(state)
-            action_dist = torch.distributions.Categorical(probs)
-            action = action_dist.sample()
-            state, reward, term, trunc, _ = env.step(action.item())
-            done = term or trunc
-            G_new += gamma**tdx * reward
-            tdx += 1
-            if done:
-                break
-        G.append(G_new)
+    return policy, old_params, perts
 
+
+def simulate(policy: Module, env: gym.Env, gamma: float) -> float:
+    state, _ = env.reset()
+    tdx = 0
+    G_new = 0
+    while True:
+        probs = policy(state)
+        action_dist = torch.distributions.Categorical(probs)
+        action = action_dist.sample()
+        state, reward, term, trunc, _ = env.step(action.item())
+        done = term or trunc
+        G_new += gamma**tdx * reward
+        tdx += 1
+        if done:
+            break
+    return G_new
+
+
+def revert_weights(policy, old_params):
     for t, old_t in zip(policy.parameters(), old_params):
         t.data = old_t.data.clone()
-    return sum(G) / len(G), perts
+    return policy
+
+
+def update_weights(policy, avg_reward, perts, episode):
+    for t, pert in zip(policy.parameters(), perts):
+        t += get_alpha(episode) * avg_reward * pert / get_delta(episode)
+    return policy
 
 
 def get_delta(episode):
@@ -55,26 +67,30 @@ def get_alpha(episode):
 
 def spsa(env, policy, seed, num_episodes=20000, gamma=0.99, num_trials=10):
     start = time.time()
-    rolling_window = deque(maxlen=1000)
     results = []
-    delta = 0.1
     for episode in range(num_episodes):
         with torch.no_grad():
-            G, perts = f(
-                env, policy, gamma, delta=get_delta(episode), num_trials=num_trials
+            # sample perturbations
+            perturbed_policy, old_params, perts = perturb_policy(
+                policy, delta=get_delta(episode)
             )
-            avg = 0
-            if len(rolling_window) > 0:
-                avg = sum(rolling_window) / len(rolling_window)
 
-            for t, pert in zip(policy.parameters(), perts):
-                t += get_alpha(episode) * G * pert / get_delta(episode)
+            # simulate for num_trials
+            rewards = []
+            for _ in range(num_trials):
+                rewards.append(simulate(perturbed_policy, env, gamma))
 
-        # optimizer.step()
-        rolling_window.append(G)
-        results.append(G)
+            # revert weights of the policy
+            policy = revert_weights(perturbed_policy, old_params)
+
+            # update weights according to the paper
+            avg_reward = sum(rewards) / len(rewards)
+            policy = update_weights(policy, avg_reward, perts, episode)
+
+        results.append(avg_reward)
 
         if episode % 1000 == 0:
+            avg = sum(results[-1000:]) / min(len(results), 1000)
             print(
                 f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}"
             )
