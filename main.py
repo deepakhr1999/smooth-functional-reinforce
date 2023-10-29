@@ -13,6 +13,7 @@ CONFIGS = {
     "tiny": {"size": 4, "slip_prob": 0.1, "max_len": 50},
     "small": {"size": 8, "slip_prob": 0.1, "max_len": 80},
     "medium": {"size": 10, "slip_prob": 0.1, "max_len": 100},
+    "medium20": {"size": 20, "slip_prob": 0.1, "max_len": 150},
     "large": {"size": 50, "slip_prob": 0.1, "max_len": 200},
 }
 
