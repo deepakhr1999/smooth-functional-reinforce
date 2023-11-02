@@ -58,7 +58,8 @@ def update_weights(policy, avg_reward, perts, episode):
 
 
 def get_delta(episode):
-    return (2e-5 / (1 + episode * 2e-5)) ** 0.25
+    # run with values such as .15, .25, .35, .45
+    return (2e-5 / (1 + episode * 2e-5)) ** 0.45
 
 
 def get_alpha(episode):

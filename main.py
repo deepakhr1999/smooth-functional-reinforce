@@ -53,7 +53,7 @@ def main(algo, seed, config_name, iterations):
     env = CustomGridWorld(**cfg)
     policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
 
-    if algo == "reinforce":
+    if algo.startswith("reinforce"):
         optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
         results = reinforce(env, policy, optimizer, seed, iterations)
     else:
@@ -66,7 +66,7 @@ def main(algo, seed, config_name, iterations):
 
 
 if __name__ == "__main__":
-    assert sys.argv[1] in ("reinforce", "spsa"), "Wrong algorithm chosen"
+    assert sys.argv[1].startswith("reinforce") or sys.argv[1].startswith("sf_reinforce"), "Wrong algorithm chosen"
     algo = sys.argv[1]
     config_name = sys.argv[2]
     iterations = int(sys.argv[3])

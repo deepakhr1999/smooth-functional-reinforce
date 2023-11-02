@@ -1,0 +1,4 @@
+python main.py sf_reinforce_0.15 medium 250000
+python main.py sf_reinforce_0.25 medium 250000
+python main.py sf_reinforce_0.35 medium 250000
+python main.py sf_reinforce_0.45 medium 250000
