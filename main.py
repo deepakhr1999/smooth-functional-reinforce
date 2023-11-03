@@ -57,7 +57,8 @@ def main(algo, seed, config_name, iterations):
         optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
         results = reinforce(env, policy, optimizer, seed, iterations)
     else:
-        results = spsa(env, policy, seed, iterations)
+        delta_pow = algo.split("_")[-1]
+        results = spsa(env, policy, seed, float(delta_pow), iterations)
 
     dirname = f"saves/{algo}/{config_name}"
     os.makedirs(dirname, exist_ok=True)
@@ -66,7 +67,9 @@ def main(algo, seed, config_name, iterations):
 
 
 if __name__ == "__main__":
-    assert sys.argv[1].startswith("reinforce") or sys.argv[1].startswith("sf_reinforce"), "Wrong algorithm chosen"
+    assert sys.argv[1].startswith("reinforce") or sys.argv[1].startswith(
+        "sf_reinforce"
+    ), "Wrong algorithm chosen"
     algo = sys.argv[1]
     config_name = sys.argv[2]
     iterations = int(sys.argv[3])

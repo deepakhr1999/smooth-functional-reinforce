@@ -51,29 +51,29 @@ def revert_weights(policy, old_params):
     return policy
 
 
-def update_weights(policy, avg_reward, perts, episode):
+def update_weights(policy, avg_reward, perts, episode, delta_pow):
     for t, pert in zip(policy.parameters(), perts):
-        t += get_alpha(episode) * avg_reward * pert / get_delta(episode)
+        t += get_alpha(episode) * avg_reward * pert / get_delta(episode, delta_pow)
     return policy
 
 
-def get_delta(episode):
+def get_delta(episode, delta_pow):
     # run with values such as .15, .25, .35, .45
-    return (2e-5 / (1 + episode * 2e-5)) ** 0.45
+    return (2e-5 / (1 + episode * 2e-5)) ** delta_pow
 
 
 def get_alpha(episode):
     return 2e-6 / (1 + episode * 2e-5)
 
 
-def spsa(env, policy, seed, num_episodes=20000, gamma=0.99, num_trials=10):
+def spsa(env, policy, seed, delta_pow, num_episodes=20000, gamma=0.99, num_trials=10):
     start = time.time()
     results = []
     for episode in range(num_episodes):
         with torch.no_grad():
             # sample perturbations
             perturbed_policy, old_params, perts = perturb_policy(
-                policy, delta=get_delta(episode)
+                policy, delta=get_delta(episode, delta_pow)
             )
 
             # simulate for num_trials
@@ -86,14 +86,14 @@ def spsa(env, policy, seed, num_episodes=20000, gamma=0.99, num_trials=10):
 
             # update weights according to the paper
             avg_reward = sum(rewards) / len(rewards)
-            policy = update_weights(policy, avg_reward, perts, episode)
+            policy = update_weights(policy, avg_reward, perts, episode, delta_pow)
 
         results.append(avg_reward)
 
         if episode % 1000 == 0:
             avg = sum(results[-1000:]) / min(len(results), 1000)
             print(
-                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}"
+                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {delta_pow}",
             )
 
     return results

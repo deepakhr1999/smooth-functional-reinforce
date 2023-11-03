@@ -23,9 +23,9 @@ def extract_features(state, grid_size):
 
 class ContinuousPolicyNetwork(nn.Module):
     def __init__(self):
-        super(ContinuousPolicyNetwork, self).__init__()
+        super().__init__()
 
-        self.fc = nn.Linear(8, action_dim * 2)
+        self.fc = nn.Linear(8, 2)
 
         self.LOG_STD_MIN = -20
         self.LOG_STD_MAX = 2
@@ -40,7 +40,7 @@ class ContinuousPolicyNetwork(nn.Module):
         return mu, log_std
 
     def sample(self, state):
-        features = extract_features(state)
+        features = extract_features_pendulum(state)
         mean, log_std = self.forward(features)
         std = torch.exp(log_std)
         reparameter = torch.distributions.Normal(mean, std)
@@ -61,4 +61,7 @@ def extract_features_pendulum(state):
     x, y, omega = state
     omega /= 8
     theta = math.asin(y) / math.pi
-    return torch.tensor([x, x**2, y, y**2, omega, omega**2, theta, theta**2])
+    return torch.tensor(
+        [x, x**2, y, y**2, omega, omega**2, theta, theta**2],
+        dtype=torch.float32,
+    )
