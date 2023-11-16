@@ -1,7 +1,7 @@
 import sys
 from reinforce import reinforce
 from network import PolicyNetwork
-from spsa import spsa
+from spsa import sf_reinforce
 import pickle
 import torch
 from gridworld import CustomGridWorld
@@ -18,12 +18,21 @@ CONFIGS = {
 }
 
 
-def run_with_seed_spsa(seed, config_name="tiny", iterations=50000):
+def read_delta_pow(algo):
+    delta_pow = algo.split("_")[-1]
+    if delta_pow == "reinforce":
+        delta_pow = 0.25
+    elif delta_pow == "const":
+        delta_pow = 0
+    return float(delta_pow)
+
+
+def run_with_seed_sf_reinforce(seed, config_name="tiny", iterations=50000):
     torch.manual_seed(seed)
     cfg = CONFIGS[config_name]
     env = CustomGridWorld(**cfg)
     policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
-    results = spsa(env, policy, seed, iterations)
+    results = sf_reinforce(env, policy, seed, iterations)
 
     dirname = f"saves/spsa/{config_name}"
     os.makedirs(dirname, exist_ok=True)
@@ -47,7 +56,7 @@ def run_with_seed_reinforce(seed, config_name="tiny", iterations=50000):
     return results
 
 
-def main(algo, seed, config_name, iterations):
+def main(algo: str, seed: int, config_name: str, iterations: int):
     torch.manual_seed(seed)
     cfg = CONFIGS[config_name]
     env = CustomGridWorld(**cfg)
@@ -57,8 +66,8 @@ def main(algo, seed, config_name, iterations):
         optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
         results = reinforce(env, policy, optimizer, seed, iterations)
     else:
-        delta_pow = algo.split("_")[-1]
-        results = spsa(env, policy, seed, float(delta_pow), iterations)
+        delta_pow = read_delta_pow(algo)
+        results = sf_reinforce(env, policy, seed, delta_pow, iterations, two_sided=algo.startswith("two_sided"))
 
     dirname = f"saves/{algo}/{config_name}"
     os.makedirs(dirname, exist_ok=True)
@@ -69,11 +78,11 @@ def main(algo, seed, config_name, iterations):
 if __name__ == "__main__":
     assert sys.argv[1].startswith("reinforce") or sys.argv[1].startswith(
         "sf_reinforce"
-    ), "Wrong algorithm chosen"
+    ) or sys.argv[1].startswith("two_sided_sf_reinforce"), "Wrong algorithm chosen"
     algo = sys.argv[1]
     config_name = sys.argv[2]
     iterations = int(sys.argv[3])
-    with Pool(processes=10) as pool:
+    with Pool(processes=4) as pool:
         results = pool.starmap(
             main, [(algo, seed, config_name, iterations) for seed in range(10)]
         )
