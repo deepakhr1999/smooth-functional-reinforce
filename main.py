@@ -20,11 +20,12 @@ CONFIGS = {
 
 def read_delta_pow(algo):
     delta_pow = algo.split("_")[-1]
+    const_delta = None
     if delta_pow == "reinforce":
         delta_pow = 0.25
-    elif delta_pow == "const":
-        delta_pow = 0
-    return float(delta_pow)
+    elif "const" in algo.split("_"):
+        return None, float(delta_pow)
+    return float(delta_pow), const_delta
 
 
 def run_with_seed_sf_reinforce(seed, config_name="tiny", iterations=50000):
@@ -66,8 +67,16 @@ def main(algo: str, seed: int, config_name: str, iterations: int):
         optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
         results = reinforce(env, policy, optimizer, seed, iterations)
     else:
-        delta_pow = read_delta_pow(algo)
-        results = sf_reinforce(env, policy, seed, delta_pow, iterations, two_sided=algo.startswith("two_sided"))
+        delta_pow, const_delta = read_delta_pow(algo)
+        results = sf_reinforce(
+            env,
+            policy,
+            seed,
+            delta_pow,
+            const_delta,
+            iterations,
+            two_sided=algo.startswith("two_sided"),
+        )
 
     dirname = f"saves/{algo}/{config_name}"
     os.makedirs(dirname, exist_ok=True)
@@ -76,13 +85,15 @@ def main(algo: str, seed: int, config_name: str, iterations: int):
 
 
 if __name__ == "__main__":
-    assert sys.argv[1].startswith("reinforce") or sys.argv[1].startswith(
-        "sf_reinforce"
-    ) or sys.argv[1].startswith("two_sided_sf_reinforce"), "Wrong algorithm chosen"
+    assert (
+        sys.argv[1].startswith("reinforce")
+        or sys.argv[1].startswith("sf_reinforce")
+        or sys.argv[1].startswith("two_sided_sf_reinforce")
+    ), "Wrong algorithm chosen"
     algo = sys.argv[1]
     config_name = sys.argv[2]
     iterations = int(sys.argv[3])
-    with Pool(processes=4) as pool:
+    with Pool(processes=10) as pool:
         results = pool.starmap(
             main, [(algo, seed, config_name, iterations) for seed in range(10)]
         )

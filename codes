@@ -2,3 +2,17 @@ python main.py sf_reinforce_0.15 medium 150000
 python main.py sf_reinforce_0.25 medium 150000
 python main.py sf_reinforce_0.35 medium 150000
 python main.py sf_reinforce_0.45 medium 150000
+
+python main.py two_sided_sf_reinforce tiny 50000
+python main.py two_sided_sf_reinforce small 100000
+python main.py two_sided_sf_reinforce medium 150000
+python main.py two_sided_sf_reinforce medium20 150000
+python main.py two_sided_sf_reinforce large 200000
+
+
+python main.py two_sided_sf_reinforce_0.15 medium 150000
+python main.py two_sided_sf_reinforce_0.25 medium 150000
+python main.py two_sided_sf_reinforce_0.35 medium 150000
+python main.py two_sided_sf_reinforce_0.45 medium 150000
+python main.py two_sided_sf_reinforce_const_0.175 medium 150000
+python main.py two_sided_sf_reinforce_const_0.5 medium 150000

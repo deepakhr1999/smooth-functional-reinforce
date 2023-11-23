@@ -51,68 +51,35 @@ def revert_weights(policy, old_params):
     return policy
 
 
-def update_weights(policy, avg_reward, perts, episode, delta_pow):
+def update_weights(policy, avg_reward, perts, episode, delta_pow, const_delta):
     for t, pert in zip(policy.parameters(), perts):
-        t += get_alpha(episode) * avg_reward * pert / get_delta(episode, delta_pow)
+        t += get_alpha(episode) * avg_reward * pert / get_delta(episode, delta_pow, const_delta)
     return policy
 
 
-def get_delta(episode, delta_pow):
+def get_delta(episode, delta_pow, const_delta):
+    if delta_pow is None:
+        return const_delta
     # run with values such as .15, .25, .35, .45
-    if not delta_pow:
-        return 0.005
     return (2e-5 / (1 + episode * 2e-5)) ** delta_pow
 
 
 def get_alpha(episode):
     return 2e-6 / (1 + episode * 2e-5)
 
-
-# def sf_reinforce(
-#     env, policy, seed, delta_pow, num_episodes=20000, gamma=0.99, num_trials=10
-# ):
-#     start = time.time()
-#     results = []
-#     for episode in range(num_episodes):
-#         with torch.no_grad():
-#             # sample perturbations
-#             perturbed_policy, old_params, perts = perturb_policy(
-#                 policy, delta=get_delta(episode, delta_pow)
-#             )
-
-#             # simulate for num_trials
-#             rewards = []
-#             for _ in range(num_trials):
-#                 rewards.append(simulate(perturbed_policy, env, gamma))
-
-#             # revert weights of the policy
-#             policy = revert_weights(perturbed_policy, old_params)
-
-#             # update weights according to the paper
-#             avg_reward = sum(rewards) / len(rewards)
-#             policy = update_weights(policy, avg_reward, perts, episode, delta_pow)
-
-#         results.append(avg_reward)
-
-#         if episode % 1000 == 0:
-#             avg = sum(results[-1000:]) / min(len(results), 1000)
-#             print(
-#                 f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {delta_pow}",
-#             )
-
-#     return results
-
-
 def sf_reinforce(
-    env, policy, seed, delta_pow, num_episodes=20000, gamma=0.99, num_trials=10, two_sided=False,
+    env, policy, seed, delta_pow, const_delta, num_episodes=20000, gamma=0.99, num_trials=10, two_sided=False,
 ):
     start = time.time()
     results = []
+    if two_sided:
+        num_trials = num_trials // 2
+
     for episode in range(num_episodes):
         with torch.no_grad():
             # sample perturbations
             perturbed_policy, old_params, perts = perturb_policy(
-                policy, delta=get_delta(episode, delta_pow)
+                policy, delta=get_delta(episode, delta_pow, const_delta)
             )
 
             # simulate for num_trials
@@ -123,29 +90,31 @@ def sf_reinforce(
 
             # perturb policy for -
             if two_sided:
-                delta = get_delta(episode, delta_pow)
+                delta = get_delta(episode, delta_pow, const_delta)
                 for new_param, pert in zip(perturbed_policy.parameters(), perts):
-                    new_param.data -= 2 * delta * pert
+                    new_param.data -= 2 * delta * pert.data
                 rewards_minus = []
                 for _ in range(num_trials):
                     rewards_minus.append(simulate(perturbed_policy, env, gamma))
                 avg_reward_minus = sum(rewards_minus) / len(rewards_minus)
-                avg_reward = (avg_reward_plus - avg_reward_minus) / 2
+                avg_reward = (avg_reward_plus + avg_reward_minus) / 2
+                update_factor = (avg_reward_plus - avg_reward_minus) / 2
             else:
                 avg_reward = avg_reward_plus
+                update_factor = avg_reward_plus
             
             # revert weights of the policy
             policy = revert_weights(perturbed_policy, old_params)
 
             # update weights according to the paper
-            policy = update_weights(policy, avg_reward, perts, episode, delta_pow)
+            policy = update_weights(policy, update_factor, perts, episode, delta_pow, const_delta)
 
         results.append(avg_reward)
 
         if episode % 1000 == 0:
             avg = sum(results[-1000:]) / min(len(results), 1000)
             print(
-                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {delta_pow}",
+                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {delta_pow}, const_delta: {const_delta}",
             )
 
     return results
@@ -176,7 +145,7 @@ def spsa_x(
                 policy,
                 gamma,
                 get_alpha(episode),
-                get_delta(episode),
+                get_delta(episode, 0.1, 0.1),
                 avg,
                 num_trials,
                 num_perts,
