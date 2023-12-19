@@ -76,6 +76,7 @@ def main(algo: str, seed: int, config_name: str, iterations: int):
             const_delta,
             iterations,
             two_sided=algo.startswith("two_sided"),
+            signed=("sign" in algo)
         )
 
     dirname = f"saves/{algo}/{config_name}"

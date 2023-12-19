@@ -51,9 +51,14 @@ def revert_weights(policy, old_params):
     return policy
 
 
-def update_weights(policy, avg_reward, perts, episode, delta_pow, const_delta):
+def update_weights(policy, avg_reward, perts, episode, delta_pow, const_delta, signed=False):
     for t, pert in zip(policy.parameters(), perts):
-        t += get_alpha(episode) * avg_reward * pert / get_delta(episode, delta_pow, const_delta)
+        update_factor = avg_reward * pert
+        if not signed:
+            t += get_alpha(episode) * update_factor / get_delta(episode, delta_pow, const_delta)
+        else:
+            sign = 2 * (update_factor > 0) - 1
+            t += get_alpha(episode) * sign
     return policy
 
 
@@ -68,7 +73,7 @@ def get_alpha(episode):
     return 2e-6 / (1 + episode * 2e-5)
 
 def sf_reinforce(
-    env, policy, seed, delta_pow, const_delta, num_episodes=20000, gamma=0.99, num_trials=10, two_sided=False,
+    env, policy, seed, delta_pow, const_delta, num_episodes=20000, gamma=0.99, num_trials=10, two_sided=False, signed=False
 ):
     start = time.time()
     results = []
@@ -107,14 +112,14 @@ def sf_reinforce(
             policy = revert_weights(perturbed_policy, old_params)
 
             # update weights according to the paper
-            policy = update_weights(policy, update_factor, perts, episode, delta_pow, const_delta)
+            policy = update_weights(policy, update_factor, perts, episode, delta_pow, const_delta, signed=signed)
 
         results.append(avg_reward)
 
         if episode % 1000 == 0:
             avg = sum(results[-1000:]) / min(len(results), 1000)
             print(
-                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {delta_pow}, const_delta: {const_delta}",
+                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {delta_pow}, const_delta: {const_delta}, signed={signed}",
             )
 
     return results
