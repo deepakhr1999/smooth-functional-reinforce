@@ -2,6 +2,7 @@ import sys
 from reinforce import reinforce
 from network import PolicyNetwork
 from spsa import sf_reinforce
+from ppo import run_ppo
 import pickle
 import torch
 from gridworld import CustomGridWorld
@@ -60,13 +61,18 @@ def run_with_seed_reinforce(seed, config_name="tiny", iterations=50000):
 def main(algo: str, seed: int, config_name: str, iterations: int):
     torch.manual_seed(seed)
     cfg = CONFIGS[config_name]
-    env = CustomGridWorld(**cfg)
-    policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
-
-    if algo.startswith("reinforce"):
+    env_maker = lambda: CustomGridWorld(**cfg)
+    
+    if algo == "ppo":
+        policy, results = run_ppo(env_maker, iterations, seed)
+    elif algo.startswith("reinforce"):
+        env = env_maker()
+        policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
         optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
         results = reinforce(env, policy, optimizer, seed, iterations)
     else:
+        env = env_maker()
+        policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
         delta_pow, const_delta = read_delta_pow(algo)
         results = sf_reinforce(
             env,
@@ -90,6 +96,7 @@ if __name__ == "__main__":
         sys.argv[1].startswith("reinforce")
         or sys.argv[1].startswith("sf_reinforce")
         or sys.argv[1].startswith("two_sided_sf_reinforce")
+        or sys.argv[1].startswith("ppo")
     ), "Wrong algorithm chosen"
     algo = sys.argv[1]
     config_name = sys.argv[2]

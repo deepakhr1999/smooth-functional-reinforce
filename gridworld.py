@@ -1,7 +1,7 @@
 import numpy as np
+import gymnasium as gym
 
-
-class CustomGridWorld:
+class CustomGridWorld(gym.Env):
     def __init__(self, size=4, slip_prob=0.2, max_len=100, **kwargs):
         """
         size: Dimension of the square grid.
@@ -14,8 +14,10 @@ class CustomGridWorld:
         self.goal = (self.size - 1, self.size - 1)
         self.steps = 0
         self.max_len = max_len
+        self.observation_space = gym.spaces.Discrete(self.size**2)
+        self.action_space = gym.spaces.Discrete(4)
 
-    def reset(self):
+    def reset(self, *args, **kwargs):
         self.steps = 0
         self.state = (0, 0)
         return 0, None
@@ -49,7 +51,7 @@ class CustomGridWorld:
 
         if self.steps == self.max_len:
             done = True
-        return new_state[0] * self.size + new_state[1], reward, done, False, None
+        return new_state[0] * self.size + new_state[1], reward, done, self.steps >= self.max_len, {}
 
     def render(self):
         grid = [["-" for _ in range(self.size)] for _ in range(self.size)]
