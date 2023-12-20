@@ -29,3 +29,9 @@ python main.py two_sided_sf_reinforce_const_0.7 large 200000
 
 python main.py two_sided_sf_reinforce_signed_const_0.175 large 200000
 python main.py sf_reinforce_signed_const_0.175 large 200000
+
+python main.py sf_reinforce_signed_const_0.175 tiny 50000
+python main.py sf_reinforce_signed_const_0.175 medium 150000
+
+python main.py two_sided_sf_reinforce_signed_const_0.175 tiny 50000
+python main.py two_sided_sf_reinforce_signed_const_0.175 medium 150000
