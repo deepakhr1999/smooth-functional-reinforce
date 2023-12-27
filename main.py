@@ -9,6 +9,7 @@ from gridworld import CustomGridWorld
 from multiprocessing import Pool
 import os
 import time
+import argparse
 
 CONFIGS = {
     "tiny": {"size": 4, "slip_prob": 0.1, "max_len": 50},
@@ -29,63 +30,44 @@ def read_delta_pow(algo):
     return float(delta_pow), const_delta
 
 
-def run_with_seed_sf_reinforce(seed, config_name="tiny", iterations=50000):
+def main(seed: int, args):
     torch.manual_seed(seed)
-    cfg = CONFIGS[config_name]
-    env = CustomGridWorld(**cfg)
-    policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
-    results = sf_reinforce(env, policy, seed, iterations)
+    delta_str = "signed_" if args.sign else ""
+    if args.delta_pow is None:
+        delta_str += f"const_{args.const_delta}"
+    else:
+        delta_str += str(args.delta_pow)
+    if args.alpha != 2e-6:
+        delta_str += f"_alpha={args.alpha}"
+    
+    dirname = f"saves/{args.algo}_{delta_str}/{args.config_name}"
+    print("saving to", dirname)
 
-    dirname = f"saves/spsa/{config_name}"
-    os.makedirs(dirname, exist_ok=True)
-    torch.save(policy.state_dict(), os.path.join(dirname, "weights.{seed}.pth"))
-    return results
-
-
-def run_with_seed_reinforce(seed, config_name="tiny", iterations=50000):
-    torch.manual_seed(seed)
-    cfg = CONFIGS[config_name]
-    env = CustomGridWorld(**cfg)
-
-    policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
-    optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
-
-    results = reinforce(env, policy, optimizer, seed, iterations)
-
-    dirname = f"saves/reinforce/{config_name}"
-    os.makedirs(dirname, exist_ok=True)
-    torch.save(policy.state_dict(), os.path.join(dirname, "weights.{seed}.pth"))
-    return results
-
-
-def main(algo: str, seed: int, config_name: str, iterations: int):
-    torch.manual_seed(seed)
-    cfg = CONFIGS[config_name]
+    cfg = CONFIGS[args.config_name]
     env_maker = lambda: CustomGridWorld(**cfg)
     
-    if algo == "ppo":
-        policy, results = run_ppo(env_maker, iterations, seed)
-    elif algo.startswith("reinforce"):
+    if args.algo == "ppo":
+        policy, results = run_ppo(env_maker, args.iterations, seed)
+    elif args.algo.startswith("reinforce"):
         env = env_maker()
         policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
-        optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
-        results = reinforce(env, policy, optimizer, seed, iterations)
+        results = reinforce(env, policy, seed, args.iterations)
     else:
         env = env_maker()
         policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
-        delta_pow, const_delta = read_delta_pow(algo)
         results = sf_reinforce(
             env,
             policy,
             seed,
-            delta_pow,
-            const_delta,
-            iterations,
-            two_sided=algo.startswith("two_sided"),
-            signed=("sign" in algo)
+            args.delta_pow,
+            args.const_delta,
+            args.iterations,
+            two_sided=args.algo.startswith("two_sided"),
+            signed=args.sign,
+            alpha=args.alpha
         )
 
-    dirname = f"saves/{algo}/{config_name}"
+    
     os.makedirs(dirname, exist_ok=True)
     torch.save(policy.state_dict(), os.path.join(dirname, f"weights.{seed}.pth"))
     return results
@@ -101,9 +83,20 @@ if __name__ == "__main__":
     algo = sys.argv[1]
     config_name = sys.argv[2]
     iterations = int(sys.argv[3])
+    
+    parser = argparse.ArgumentParser(description='Train agents using various RL algorithms.')
+    parser.add_argument('algo', choices=['reinforce', 'sf_reinforce', 'two_sided_sf_reinforce', 'ppo'], help='RL algorithm')
+    parser.add_argument('config_name', choices=CONFIGS.keys(), help='Configuration name')
+    parser.add_argument('iterations', type=int, help='Number of iterations')
+    parser.add_argument("--sign", action="store_true", default=False)
+    parser.add_argument("--delta_pow", type=float, default=None)
+    parser.add_argument("--const_delta", type=float, default=0.175)
+    parser.add_argument("--alpha", type=float, default=2e-6)
+    args = parser.parse_args()
+
     with Pool(processes=10) as pool:
         results = pool.starmap(
-            main, [(algo, seed, config_name, iterations) for seed in range(10)]
+            main, [(seed, args) for seed in range(10)]
         )
 
     filename = "_".join(map(str, [iterations, int(time.time()), "results.pkl"]))

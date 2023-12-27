@@ -2,7 +2,7 @@ import gymnasium as gym
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from gridworld import CustomGridWorld
+
 from stable_baselines3.common.callbacks import EveryNTimesteps, BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 from typing import Callable

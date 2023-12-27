@@ -51,29 +51,53 @@ def revert_weights(policy, old_params):
     return policy
 
 
-def update_weights(policy, avg_reward, perts, episode, delta_pow, const_delta, signed=False):
+def update_weights(
+    policy,
+    avg_reward,
+    perts,
+    episode,
+    delta_pow,
+    const_delta,
+    signed=False,
+    alpha=2e-6,
+):
     for t, pert in zip(policy.parameters(), perts):
         update_factor = avg_reward * pert
         if not signed:
-            t += get_alpha(episode) * update_factor / get_delta(episode, delta_pow, const_delta)
+            t += (
+                get_alpha(episode, alpha)
+                * update_factor
+                / get_delta(episode, delta_pow, const_delta)
+            )
         else:
             sign = 2 * (update_factor > 0) - 1
-            t += get_alpha(episode) * sign
+            t += get_alpha(episode, alpha) * sign
     return policy
 
 
 def get_delta(episode, delta_pow, const_delta):
-    if delta_pow is None:
-        return const_delta
-    # run with values such as .15, .25, .35, .45
-    return (2e-5 / (1 + episode * 2e-5)) ** delta_pow
+    if const_delta is None:
+        # run with values such as .15, .25, .35, .45
+        return (2e-5 / (1 + episode * 2e-5)) ** delta_pow
+    return const_delta
 
 
-def get_alpha(episode):
-    return 2e-6 / (1 + episode * 2e-5)
+def get_alpha(episode, start=2e-6):
+    return start / (1 + episode * 2e-5)
+
 
 def sf_reinforce(
-    env, policy, seed, delta_pow, const_delta, num_episodes=20000, gamma=0.99, num_trials=10, two_sided=False, signed=False
+    env,
+    policy,
+    seed,
+    delta_pow,
+    const_delta,
+    num_episodes=20000,
+    gamma=0.99,
+    num_trials=10,
+    two_sided=False,
+    signed=False,
+    alpha=2e-6,
 ):
     start = time.time()
     results = []
@@ -107,12 +131,21 @@ def sf_reinforce(
             else:
                 avg_reward = avg_reward_plus
                 update_factor = avg_reward_plus
-            
+
             # revert weights of the policy
             policy = revert_weights(perturbed_policy, old_params)
 
             # update weights according to the paper
-            policy = update_weights(policy, update_factor, perts, episode, delta_pow, const_delta, signed=signed)
+            policy = update_weights(
+                policy,
+                update_factor,
+                perts,
+                episode,
+                delta_pow,
+                const_delta,
+                signed=signed,
+                alpha=alpha,
+            )
 
         results.append(avg_reward)
 
@@ -134,6 +167,7 @@ def spsa_x(
     num_trials=100,
     num_perts=10,
     x=3,
+    alpha=2e-6,
 ):
     rolling_window = deque(maxlen=2000)
     results = []
@@ -149,7 +183,7 @@ def spsa_x(
                 env,
                 policy,
                 gamma,
-                get_alpha(episode),
+                get_alpha(episode, alpha),
                 get_delta(episode, 0.1, 0.1),
                 avg,
                 num_trials,

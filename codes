@@ -35,3 +35,13 @@ python main.py sf_reinforce_signed_const_0.175 medium 150000
 
 python main.py two_sided_sf_reinforce_signed_const_0.175 tiny 50000
 python main.py two_sided_sf_reinforce_signed_const_0.175 medium 150000
+
+
+python main.py two_sided_sf_reinforce medium 150000 --const_delta 0.5 --sign --alpha 2e-6
+python main.py two_sided_sf_reinforce medium 150000 --delta_pow 0.25 --alpha 2e-6
+
+python main.py ppo tiny 50000
+python main.py ppo small 100000
+python main.py ppo medium 150000
+python main.py ppo medium20 150000
+python main.py ppo large 200000

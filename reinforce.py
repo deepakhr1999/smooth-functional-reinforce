@@ -3,8 +3,9 @@ from collections import deque
 import time
 
 
-def reinforce(env, policy, optimizer, seed, num_episodes=1000, gamma=0.99):
+def reinforce(env, policy, seed, num_episodes=1000, gamma=0.99):
     start = time.time()
+    optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
     rolling_window = deque(maxlen=100)
     results = []
     for episode in range(num_episodes):
