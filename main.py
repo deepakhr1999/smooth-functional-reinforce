@@ -20,6 +20,20 @@ CONFIGS = {
 }
 
 
+def get_dirname(args):
+    delta_str = "signed_" if args.sign else ""
+    if args.delta_pow is None:
+        delta_str += f"const_delta={args.const_delta}"
+    else:
+        delta_str += str(args.delta_pow)
+    if args.alpha != 2e-6:
+        delta_str += f"_start_alpha={args.alpha}"
+
+    if args.grad_bound < 1e5:
+        delta_str += f"_grad_bound_{args.grad_bound}"
+    return f"saves/{args.algo}_{delta_str}/{args.config_name}"
+
+
 def read_delta_pow(algo):
     delta_pow = algo.split("_")[-1]
     const_delta = None
@@ -32,20 +46,12 @@ def read_delta_pow(algo):
 
 def main(seed: int, args):
     torch.manual_seed(seed)
-    delta_str = "signed_" if args.sign else ""
-    if args.delta_pow is None:
-        delta_str += f"const_{args.const_delta}"
-    else:
-        delta_str += str(args.delta_pow)
-    if args.alpha != 2e-6:
-        delta_str += f"_alpha={args.alpha}"
-    
-    dirname = f"saves/{args.algo}_{delta_str}/{args.config_name}"
+    dirname = get_dirname(args)
     print("saving to", dirname)
 
     cfg = CONFIGS[args.config_name]
     env_maker = lambda: CustomGridWorld(**cfg)
-    
+
     if args.algo == "ppo":
         policy, results = run_ppo(env_maker, args.iterations, seed)
     elif args.algo.startswith("reinforce"):
@@ -55,50 +61,37 @@ def main(seed: int, args):
     else:
         env = env_maker()
         policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
-        results = sf_reinforce(
-            env,
-            policy,
-            seed,
-            args.delta_pow,
-            args.const_delta,
-            args.iterations,
-            two_sided=args.algo.startswith("two_sided"),
-            signed=args.sign,
-            alpha=args.alpha
-        )
+        results = sf_reinforce(env, policy, seed, args)
 
-    
     os.makedirs(dirname, exist_ok=True)
     torch.save(policy.state_dict(), os.path.join(dirname, f"weights.{seed}.pth"))
     return results
 
 
 if __name__ == "__main__":
-    assert (
-        sys.argv[1].startswith("reinforce")
-        or sys.argv[1].startswith("sf_reinforce")
-        or sys.argv[1].startswith("two_sided_sf_reinforce")
-        or sys.argv[1].startswith("ppo")
-    ), "Wrong algorithm chosen"
-    algo = sys.argv[1]
-    config_name = sys.argv[2]
-    iterations = int(sys.argv[3])
-    
-    parser = argparse.ArgumentParser(description='Train agents using various RL algorithms.')
-    parser.add_argument('algo', choices=['reinforce', 'sf_reinforce', 'two_sided_sf_reinforce', 'ppo'], help='RL algorithm')
-    parser.add_argument('config_name', choices=CONFIGS.keys(), help='Configuration name')
-    parser.add_argument('iterations', type=int, help='Number of iterations')
+    parser = argparse.ArgumentParser(
+        description="Train agents using various RL algorithms."
+    )
+    parser.add_argument(
+        "algo",
+        choices=["reinforce", "sf_reinforce", "two_sided_sf_reinforce", "ppo"],
+        help="RL algorithm",
+    )
+    parser.add_argument(
+        "config_name", choices=CONFIGS.keys(), help="Configuration name"
+    )
+    parser.add_argument("iterations", type=int, help="Number of iterations")
     parser.add_argument("--sign", action="store_true", default=False)
     parser.add_argument("--delta_pow", type=float, default=None)
     parser.add_argument("--const_delta", type=float, default=0.175)
     parser.add_argument("--alpha", type=float, default=2e-6)
+    parser.add_argument("--grad_bound", type=float, default=1e5)
     args = parser.parse_args()
 
     with Pool(processes=10) as pool:
-        results = pool.starmap(
-            main, [(seed, args) for seed in range(10)]
-        )
+        results = pool.starmap(main, [(seed, args) for seed in range(10)])
 
-    filename = "_".join(map(str, [iterations, int(time.time()), "results.pkl"]))
-    with open(os.path.join("saves", algo, config_name, filename), "wb") as file:
+    filename = "_".join(map(str, [args.iterations, int(time.time()), "results.pkl"]))
+    dirname = get_dirname(args)
+    with open(os.path.join(dirname, filename), "wb") as file:
         pickle.dump(results, file)

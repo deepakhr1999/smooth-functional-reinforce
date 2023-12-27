@@ -1,23 +1,7 @@
 import torch
 import time
-from collections import deque
 from torch.nn import Module
 import gym
-
-
-def top_x_grad(env, policy, gamma, alpha, delta, avg, num_trials, num_perts, x):
-    return_pert_pairs = [
-        f(env, policy, gamma, delta, num_trials) for _ in range(num_perts)
-    ]
-    return_pert_pairs.sort(reverse=True)
-
-    log_G = 0
-    for idx in range(x):
-        G, perts = return_pert_pairs[idx]
-        log_G += G
-        for t, pert in zip(policy.parameters(), perts):
-            t += alpha * (G - avg) * pert / delta
-    return log_G / x
 
 
 def perturb_policy(policy: Module, delta: float) -> tuple[Module, list, list]:
@@ -56,22 +40,18 @@ def update_weights(
     avg_reward,
     perts,
     episode,
-    delta_pow,
-    const_delta,
-    signed=False,
-    alpha=2e-6,
+    args,
 ):
     for t, pert in zip(policy.parameters(), perts):
         update_factor = avg_reward * pert
-        if not signed:
-            t += (
-                get_alpha(episode, alpha)
-                * update_factor
-                / get_delta(episode, delta_pow, const_delta)
-            )
+        if not args.sign:
+            update = (
+                update_factor / get_delta(episode, args.delta_pow, args.const_delta)
+            ).clamp(-args.grad_bound, args.grad_bound)
+            t += get_alpha(episode, args.alpha) * update
         else:
             sign = 2 * (update_factor > 0) - 1
-            t += get_alpha(episode, alpha) * sign
+            t += get_alpha(episode, args.alpha) * sign
     return policy
 
 
@@ -90,25 +70,21 @@ def sf_reinforce(
     env,
     policy,
     seed,
-    delta_pow,
-    const_delta,
-    num_episodes=20000,
-    gamma=0.99,
+    args,
     num_trials=10,
-    two_sided=False,
-    signed=False,
-    alpha=2e-6,
+    gamma=0.99,
 ):
     start = time.time()
     results = []
+    two_sided = args.algo.startswith("two_sided")
     if two_sided:
         num_trials = num_trials // 2
 
-    for episode in range(num_episodes):
+    for episode in range(args.iterations):
         with torch.no_grad():
             # sample perturbations
             perturbed_policy, old_params, perts = perturb_policy(
-                policy, delta=get_delta(episode, delta_pow, const_delta)
+                policy, delta=get_delta(episode, args.delta_pow, args.const_delta)
             )
 
             # simulate for num_trials
@@ -119,7 +95,7 @@ def sf_reinforce(
 
             # perturb policy for -
             if two_sided:
-                delta = get_delta(episode, delta_pow, const_delta)
+                delta = get_delta(episode, args.delta_pow, args.const_delta)
                 for new_param, pert in zip(perturbed_policy.parameters(), perts):
                     new_param.data -= 2 * delta * pert.data
                 rewards_minus = []
@@ -141,10 +117,7 @@ def sf_reinforce(
                 update_factor,
                 perts,
                 episode,
-                delta_pow,
-                const_delta,
-                signed=signed,
-                alpha=alpha,
+                args,
             )
 
         results.append(avg_reward)
@@ -152,49 +125,7 @@ def sf_reinforce(
         if episode % 1000 == 0:
             avg = sum(results[-1000:]) / min(len(results), 1000)
             print(
-                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {delta_pow}, const_delta: {const_delta}, signed={signed}",
+                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {args.delta_pow}, const_delta: {args.const_delta}, signed={args.sign}",
             )
-
-    return results
-
-
-def spsa_x(
-    env,
-    policy,
-    num_episodes=20000,
-    gamma=0.99,
-    verbose=1,
-    num_trials=100,
-    num_perts=10,
-    x=3,
-    alpha=2e-6,
-):
-    rolling_window = deque(maxlen=2000)
-    results = []
-    delta = 0.1
-    for episode in range(num_episodes):
-        with torch.no_grad():
-            avg = 0
-            if len(rolling_window) > 0:
-                avg = sum(rolling_window) / len(rolling_window)
-            # Update parameters using the gradient estimate
-
-            G = top_x_grad(
-                env,
-                policy,
-                gamma,
-                get_alpha(episode, alpha),
-                get_delta(episode, 0.1, 0.1),
-                avg,
-                num_trials,
-                num_perts,
-                x,
-            )
-
-        rolling_window.append(G)
-        results.append(G)
-
-        if episode % 100 == 0 and verbose != 0:
-            print(f"Episode {episode}, Average Reward: {avg}, G={G}")
-
+            # print(f"Seed: {seed}: ", pd.Series(all_updates).describe())
     return results

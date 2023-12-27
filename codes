@@ -45,3 +45,6 @@ python main.py ppo small 100000
 python main.py ppo medium 150000
 python main.py ppo medium20 150000
 python main.py ppo large 200000
+
+python main.py two_sided_sf_reinforce large 200000 --const_delta 0.5 --alpha 2e-2 --grad_bound 1.5
+python main.py sf_reinforce large 200000 --const_delta 0.5 --alpha 2e-2 --grad_bound 1.5
