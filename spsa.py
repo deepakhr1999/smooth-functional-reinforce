@@ -42,17 +42,31 @@ def update_weights(
     episode,
     args,
 ):
+    norm = None
+    if args.grad_norm < 1e9:
+        norm = 0
+        for pert in perts:
+            update_factor = avg_reward * pert
+            norm += (update_factor**2).sum().cpu().item()
+        norm = norm**0.5
+
     for t, pert in zip(policy.parameters(), perts):
         update_factor = avg_reward * pert
-        if not args.sign:
+        if args.sign:
+            # signed udpate
+            sign = 2 * (update_factor > 0) - 1
+            t += get_alpha(episode, args.alpha) * sign
+        else:
+            # clamp, norm and update
             update = (
                 update_factor / get_delta(episode, args.delta_pow, args.const_delta)
             ).clamp(-args.grad_bound, args.grad_bound)
+
+            if norm is not None and norm > args.grad_norm:
+                update *= args.grad_norm / norm
+
             t += get_alpha(episode, args.alpha) * update
-        else:
-            sign = 2 * (update_factor > 0) - 1
-            t += get_alpha(episode, args.alpha) * sign
-    return policy
+    return policy, norm
 
 
 def get_delta(episode, delta_pow, const_delta):
@@ -76,6 +90,7 @@ def sf_reinforce(
 ):
     start = time.time()
     results = []
+    norms = []
     two_sided = args.algo.startswith("two_sided")
     if two_sided:
         num_trials = num_trials // 2
@@ -112,20 +127,23 @@ def sf_reinforce(
             policy = revert_weights(perturbed_policy, old_params)
 
             # update weights according to the paper
-            policy = update_weights(
+            policy, norm = update_weights(
                 policy,
                 update_factor,
                 perts,
                 episode,
                 args,
             )
-
+        if norm is None:
+            norm = 0
+        norms.append(norm)
         results.append(avg_reward)
 
         if episode % 1000 == 0:
             avg = sum(results[-1000:]) / min(len(results), 1000)
+            norm_avg = sum(norms[-1000:]) / min(len(norms), 1000)
             print(
-                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg}, delta_pow: {args.delta_pow}, const_delta: {args.const_delta}, signed={args.sign}",
+                f"Seed: {seed}, time: {time.time() - start}, Episode {episode}, Average Reward: {avg:.3f}, delta_pow: {args.delta_pow}, const_delta: {args.const_delta}, signed={args.sign}, norm: {norm_avg:.3f}",
             )
             # print(f"Seed: {seed}: ", pd.Series(all_updates).describe())
     return results

@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 import math
+from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
+from gymnasium.spaces import Discrete
 
 
 class PolicyNetwork(nn.Module):
@@ -20,6 +22,18 @@ def extract_features(state, grid_size):
     features = [alpha, alpha**2, beta, beta**2, (alpha + beta) % 2, state]
     return torch.tensor(features, dtype=torch.float32)
 
+
+class CustomFeatureExtractor(BaseFeaturesExtractor):
+    def __init__(self, observation_space: Discrete, features_dim: int):
+        super().__init__(observation_space, features_dim)
+        self.grid_size = int(pow(observation_space.n, 0.5))
+        print("initializing custom extractor", self.grid_size)
+
+    def forward(self, state: torch.Tensor):
+        state = state.argmax(-1)
+        alpha, beta = state // self.grid_size, state % self.grid_size
+        features = [alpha, alpha**2, beta, beta**2, (alpha + beta) % 2, state]
+        return torch.stack(features, dim=-1).float()
 
 class ContinuousPolicyNetwork(nn.Module):
     def __init__(self):

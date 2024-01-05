@@ -2,9 +2,11 @@ import gymnasium as gym
 
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-
+from torch import nn
 from stable_baselines3.common.callbacks import EveryNTimesteps, BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.policies import ActorCriticPolicy
+from network import CustomFeatureExtractor
 from typing import Callable
 import time
 
@@ -16,8 +18,33 @@ CONFIGS = {
     "large": {"size": 50, "slip_prob": 0.1, "max_len": 200},
 }
 
+
+class CustomMLPExtractor(nn.Module):
+    def __init__(self, features_dim) -> None:
+        super().__init__()
+        self.latent_dim_pi = features_dim
+        self.latent_dim_vf = features_dim
+
+    def forward(self, features):
+        return features, features
+
+    def forward_actor(self, features):
+        return features
+
+    def forward_critic(self, features):
+        return features
+
+
+class CustomActorCriticPolicy(ActorCriticPolicy):
+    def _build_mlp_extractor(self) -> None:
+        assert isinstance(
+            self.observation_space, gym.spaces.Discrete
+        ), "expecting discrete environment"
+        self.mlp_extractor = CustomMLPExtractor(self.features_dim)
+
+
 class MyEvalCB(BaseCallback):
-    def __init__(self, verbose=0, n_steps=100, env_maker: Callable=Callable, seed=0):
+    def __init__(self, verbose=0, n_steps=100, env_maker: Callable = Callable, seed=0):
         super().__init__(verbose)
         self.n_steps = n_steps
         self.last_time_trigger = 0
@@ -35,10 +62,16 @@ class MyEvalCB(BaseCallback):
                 f"Seed: {self.seed}, time: {time.time() - self.start}, Step {self.num_timesteps}, Average Reward: {mean_reward}"
             )
         return True
-    
-def run_ppo(env_maker: Callable, train_steps:int, seed=0):
+
+
+def run_ppo(env_maker: Callable, train_steps: int, seed=0):
     vec_env = make_vec_env(env_maker, n_envs=4)
-    model = PPO("MlpPolicy", vec_env, verbose=1)
+    policy_kwargs = dict(
+        features_extractor_class=CustomFeatureExtractor,
+        features_extractor_kwargs=dict(features_dim=6),
+    )
+    model = PPO("MlpPolicy", vec_env, verbose=1, policy_kwargs=policy_kwargs)
+    # model = PPO("MlpPolicy", vec_env, verbose=1)
     callback = MyEvalCB(n_steps=1000, env_maker=env_maker, seed=seed)
     model.learn(
         total_timesteps=train_steps,
@@ -46,6 +79,6 @@ def run_ppo(env_maker: Callable, train_steps:int, seed=0):
         callback=EveryNTimesteps(
             100,
             callback=callback,
-        )
+        ),
     )
     return model.policy, callback.accumulator

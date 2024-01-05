@@ -21,17 +21,23 @@ CONFIGS = {
 
 
 def get_dirname(args):
-    delta_str = "signed_" if args.sign else ""
+    delta_str = "_signed_" if args.sign else "_"
     if args.delta_pow is None:
-        delta_str += f"const_delta={args.const_delta}"
+        if args.const_delta != 0.175:
+            delta_str += f"const_delta={args.const_delta}"
     else:
         delta_str += str(args.delta_pow)
     if args.alpha != 2e-6:
         delta_str += f"_start_alpha={args.alpha}"
 
     if args.grad_bound < 1e5:
-        delta_str += f"_grad_bound_{args.grad_bound}"
-    return f"saves/{args.algo}_{delta_str}/{args.config_name}"
+        delta_str += f"_grad_bound={args.grad_bound}"
+
+    if args.grad_norm < 1e9:
+        delta_str += f"_grad_norm={args.grad_norm}"
+    if delta_str == "_":
+        delta_str = ""
+    return f"saves/{args.algo}{delta_str}/{args.config_name}"
 
 
 def read_delta_pow(algo):
@@ -86,6 +92,7 @@ if __name__ == "__main__":
     parser.add_argument("--const_delta", type=float, default=0.175)
     parser.add_argument("--alpha", type=float, default=2e-6)
     parser.add_argument("--grad_bound", type=float, default=1e5)
+    parser.add_argument("--grad_norm", type=float, default=1e9)
     args = parser.parse_args()
 
     with Pool(processes=10) as pool:
