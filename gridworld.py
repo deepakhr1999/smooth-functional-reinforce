@@ -1,11 +1,19 @@
+"""Environment Code"""
 import numpy as np
 import gymnasium as gym
 
 class CustomGridWorld(gym.Env):
+    """gym.Env compatible environment for testing various algorithms"""
+    # pylint: disable=unused-argument
     def __init__(self, size=4, slip_prob=0.2, max_len=100, **kwargs):
-        """
-        size: Dimension of the square grid.
-        slip_prob: Probability of moving in a perpendicular direction.
+        """Griworld with 4 actions
+
+        Args:
+            size (int, optional): Side length of gridworld. Defaults to 4.
+            slip_prob (float, optional): Probability that agent moves
+                        perpendicular to action taken. Defaults to 0.2.
+            max_len (int, optional): Cap on maximum steps in an episode. Defaults to 100.
+            kwargs: For stable-baselines compatibility
         """
         self.size = size
         self.n_actions = 4
@@ -17,7 +25,7 @@ class CustomGridWorld(gym.Env):
         self.observation_space = gym.spaces.Discrete(self.size**2)
         self.action_space = gym.spaces.Discrete(4)
 
-    def reset(self, *args, **kwargs):
+    def reset(self, *args, **kwargs): # pylint: disable=unused-argument
         self.steps = 0
         self.state = (0, 0)
         return 0, None
@@ -31,6 +39,7 @@ class CustomGridWorld(gym.Env):
             action_offsets = [[1, 3], [0, 2], [1, 3], [0, 2]]  # Perpendicular offsets
             action = np.random.choice(action_offsets[action])
 
+        new_state = self.state
         if action == 0:  # up
             new_state = (max(self.state[0] - 1, 0), self.state[1])
         elif action == 1:  # right
@@ -60,14 +69,3 @@ class CustomGridWorld(gym.Env):
         for row in grid:
             print(" ".join(row))
         print()
-
-
-# Example usage:
-if __name__ == "__main__":
-    env = CustomGridWorld(size=4, slip_prob=0.2)
-    state, _ = env.reset()
-    done = False
-    while not done:
-        action = np.random.choice([0, 1, 2, 3])  # Take random actions for demonstration
-        state, reward, done, *_ = env.step(action)
-        env.render()

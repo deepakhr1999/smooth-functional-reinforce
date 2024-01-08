@@ -1,0 +1,5 @@
+[TYPECHECK]
+generated-members=commit
+
+[DESIGN]
+max-attributes=10

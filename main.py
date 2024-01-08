@@ -1,15 +1,15 @@
-import sys
-from reinforce import reinforce
-from network import PolicyNetwork
-from spsa import sf_reinforce
-from ppo import run_ppo
-import pickle
-import torch
-from gridworld import CustomGridWorld
-from multiprocessing import Pool
+"""Driver Code"""
 import os
 import time
 import argparse
+from multiprocessing import Pool
+import pickle
+import torch
+from reinforce import reinforce
+from network import PolicyNetwork
+from sf_reinforce import sf_reinforce
+from ppo import run_ppo
+from gridworld import CustomGridWorld
 
 CONFIGS = {
     "tiny": {"size": 4, "slip_prob": 0.1, "max_len": 50},
@@ -20,7 +20,8 @@ CONFIGS = {
 }
 
 
-def get_dirname(args):
+def get_dirname(args: argparse.Namespace) -> str:
+    """Save directory from config"""
     delta_str = "_signed_" if args.sign else "_"
     if args.delta_pow is None:
         if args.const_delta != 0.175:
@@ -40,23 +41,15 @@ def get_dirname(args):
     return f"saves/{args.algo}{delta_str}/{args.config_name}"
 
 
-def read_delta_pow(algo):
-    delta_pow = algo.split("_")[-1]
-    const_delta = None
-    if delta_pow == "reinforce":
-        delta_pow = 0.25
-    elif "const" in algo.split("_"):
-        return None, float(delta_pow)
-    return float(delta_pow), const_delta
-
-
-def main(seed: int, args):
+def run_for_seed(seed: int, args: argparse.Namespace):
+    """Run the algorithm for one seed using config from cmd args"""
     torch.manual_seed(seed)
     dirname = get_dirname(args)
     print("saving to", dirname)
 
     cfg = CONFIGS[args.config_name]
-    env_maker = lambda: CustomGridWorld(**cfg)
+    def env_maker():
+        return CustomGridWorld(**cfg)
 
     if args.algo == "ppo":
         policy, results = run_ppo(env_maker, args.iterations, seed)
@@ -73,6 +66,16 @@ def main(seed: int, args):
     torch.save(policy.state_dict(), os.path.join(dirname, f"weights.{seed}.pth"))
     return results
 
+def main(args: argparse.Namespace):
+    """Driver code"""
+    with Pool(processes=10) as pool:
+        results = pool.starmap(run_for_seed, [(seed, args) for seed in range(10)])
+
+
+    filename = "_".join(map(str, [args.iterations, int(time.time()), "results.pkl"]))
+    dirname = get_dirname(args)
+    with open(os.path.join(dirname, filename), "wb") as file:
+        pickle.dump(results, file)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -93,12 +96,6 @@ if __name__ == "__main__":
     parser.add_argument("--alpha", type=float, default=2e-6)
     parser.add_argument("--grad_bound", type=float, default=1e5)
     parser.add_argument("--grad_norm", type=float, default=1e9)
-    args = parser.parse_args()
+    brgs = parser.parse_args()
 
-    with Pool(processes=10) as pool:
-        results = pool.starmap(main, [(seed, args) for seed in range(10)])
-
-    filename = "_".join(map(str, [args.iterations, int(time.time()), "results.pkl"]))
-    dirname = get_dirname(args)
-    with open(os.path.join(dirname, filename), "wb") as file:
-        pickle.dump(results, file)
+    main(brgs)
