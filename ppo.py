@@ -2,11 +2,11 @@
 from typing import Callable
 import time
 import torch
+import numpy as np
 from gymnasium.spaces import Discrete
-from stable_baselines3 import PPO
+from stable_baselines3 import PPO, A2C
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.callbacks import EveryNTimesteps, BaseCallback
-from stable_baselines3.common.evaluation import evaluate_policy
+from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 
@@ -30,39 +30,52 @@ class MyEvalCB(BaseCallback):
         super().__init__(verbose)
         self.n_steps = n_steps
         self.last_time_trigger = 0
-        self.eval_env = make_vec_env(env_maker, n_envs=1)
+        self.eval_env = env_maker()
         self.accumulator = []
         self.seed = seed
         self.start = time.time()
+        self.gamma = 0.99
+        
+    def evaluate(self) -> float:
+        state, _ = self.eval_env.reset()
+        done = False
+        tot = 0
+        for tdx in range(100_000_000):
+            action = self.model.predict(np.array([state]))[0][0]
+            state, reward, done, *_ = self.eval_env.step(action)
+            tot += (self.gamma**tdx) * reward
+            if done:
+                break
+        return tot
 
     def _on_step(self) -> bool:
         if (self.num_timesteps - self.last_time_trigger) >= self.n_steps:
             self.last_time_trigger = self.num_timesteps
-            mean_reward, _ = evaluate_policy(self.model, self.eval_env)
+
+            mean_reward = self.evaluate()
             self.accumulator.append(mean_reward)
             print(
                 f"Seed: {self.seed}, time: {time.time() - self.start}, "
                 f"Step {self.num_timesteps}, Average Reward: {mean_reward}"
             )
+
         return True
 
-
-def run_ppo(env_maker: Callable, train_steps: int, seed=0):
+def run_ppo(algo:str, env_maker: Callable, train_steps: int, seed=0):
     """Driver code for PPO"""
     vec_env = make_vec_env(env_maker, n_envs=4)
     policy_kwargs = {
         "features_extractor_class": CustomFeatureExtractor,
         "features_extractor_kwargs": {'features_dim': 6},
     }
-    model = PPO("MlpPolicy", vec_env, verbose=1, policy_kwargs=policy_kwargs)
-    # model = PPO("MlpPolicy", vec_env, verbose=1)
-    callback = MyEvalCB(n_steps=1000, env_maker=env_maker, seed=seed)
+    module = PPO if algo == 'ppo' else A2C
+    model = module("MlpPolicy", vec_env, verbose=1, policy_kwargs=policy_kwargs, device="cpu")
+
+    callback = MyEvalCB(n_steps=100, env_maker=env_maker, seed=seed)
+    print("Running for", train_steps, "steps")
     model.learn(
         total_timesteps=train_steps,
         log_interval=train_steps,
-        callback=EveryNTimesteps(
-            100,
-            callback=callback,
-        ),
+        callback=callback
     )
     return model.policy, callback.accumulator

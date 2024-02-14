@@ -51,8 +51,8 @@ def run_for_seed(seed: int, args: argparse.Namespace):
     def env_maker():
         return CustomGridWorld(**cfg)
 
-    if args.algo == "ppo":
-        policy, results = run_ppo(env_maker, args.iterations, seed)
+    if args.algo in ("ppo", "a2c"):
+        policy, results = run_ppo(args.algo, env_maker, args.iterations, seed)
     elif args.algo.startswith("reinforce"):
         env = env_maker()
         policy = PolicyNetwork(env.n_actions, grid_size=cfg["size"])
@@ -68,7 +68,7 @@ def run_for_seed(seed: int, args: argparse.Namespace):
 
 def main(args: argparse.Namespace):
     """Driver code"""
-    with Pool(processes=10) as pool:
+    with Pool(processes=3) as pool:
         results = pool.starmap(run_for_seed, [(seed, args) for seed in range(10)])
 
 
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "algo",
-        choices=["reinforce", "sf_reinforce", "two_sided_sf_reinforce", "ppo"],
+        choices=["reinforce", "sf_reinforce", "two_sided_sf_reinforce", "ppo", "a2c"],
         help="RL algorithm",
     )
     parser.add_argument(

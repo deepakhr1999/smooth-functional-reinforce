@@ -1,3 +1,15 @@
+python main.py ppo tiny 50000
+python main.py ppo small 100000
+python main.py ppo medium 150000
+python main.py ppo medium20 150000
+python main.py ppo large 200000
+
+python main.py a2c tiny 50000
+python main.py a2c small 100000
+python main.py a2c medium 150000
+python main.py a2c medium20 150000
+python main.py a2c large 200000
+
 python main.py sf_reinforce_0.15 medium 150000
 python main.py sf_reinforce_0.25 medium 150000
 python main.py sf_reinforce_0.35 medium 150000
