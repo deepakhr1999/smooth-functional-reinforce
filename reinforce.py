@@ -1,7 +1,9 @@
 """REINFORCE algorithm"""
+
 import time
 from collections import deque
 import torch
+
 
 def loss_fn(policy, env, gamma=0.99) -> tuple[torch.Tensor, float]:
     """Return policy loss and discounted return"""
@@ -38,6 +40,9 @@ def reinforce(env, policy, seed, num_episodes=1000) -> list:
     optimizer = torch.optim.Adam(policy.parameters(), lr=3e-4)
     rolling_window = deque(maxlen=100)
     results = []
+    with open("reinforce_logs.txt", "+a") as file:
+        print(f"Seed,Time,Episode,Reward", file=file)
+
     for episode in range(num_episodes):
         policy_loss, total_return = loss_fn(policy, env)
 
@@ -52,4 +57,6 @@ def reinforce(env, policy, seed, num_episodes=1000) -> list:
                 f"Seed: {seed}, time: {time.time() - start},"
                 f"Episode {episode}, Average Reward: {avg}"
             )
+            with open("reinforce_logs.txt", "+a") as file:
+                print(f"{seed},{time.time() - start},{episode},{avg}", file=file)
     return results

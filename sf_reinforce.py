@@ -1,4 +1,5 @@
 """Smooth Functional REINFORCE algorithm"""
+
 import time
 from argparse import Namespace
 from typing import NamedTuple
@@ -9,9 +10,11 @@ from torch.nn import Module
 
 class SimulationResult(NamedTuple):
     """Simulation returns these values together"""
+
     avg_reward: float
     update_factor: float
     perts: list[torch.Tensor]
+
 
 def get_delta(episode: int, delta_pow: float, const_delta: None | float) -> float:
     """Pertubation schedule according to cmd args"""
@@ -25,8 +28,10 @@ def get_alpha(episode: int, start: float = 2e-6) -> float:
     """Learning rate schedule"""
     return start / (1 + episode * 2e-5)
 
+
 class SFPolicy:
     """Smooth Functional REINFORCE"""
+
     def __init__(self, env: gym.Env, policy: Module, args: Namespace):
         self.env = env
         self.policy = policy
@@ -41,7 +46,6 @@ class SFPolicy:
         for t, d in zip(self.policy.parameters(), perts):
             t.data += delta * d.data
         return perts
-
 
     def rollout(self, gamma: float = 0.99) -> float:
         """Evaluates the policy by running an agent in the environment"""
@@ -70,15 +74,12 @@ class SFPolicy:
         for new_param, pert in zip(self.policy.parameters(), perts):
             new_param.data -= 2 * delta * pert.data
 
-    def simulate(
-        self, episode: int, num_trials: int
-    ):
+    def simulate(self, episode: int, num_trials: int):
         """Perturb and simulate policy in the environment"""
         perts = self.perturb_policy(episode)
 
         # simulate for num_trials
         avg_reward_plus = sum(self.rollout() for _ in range(num_trials)) / num_trials
-
 
         if not self.args.algo.startswith("two_sided"):
             self.revert_weights()
@@ -98,7 +99,6 @@ class SFPolicy:
             update_factor=(avg_reward_plus - avg_reward_minus) / 2,
             perts=perts,
         )
-
 
     def update_weights(
         self,
@@ -124,7 +124,8 @@ class SFPolicy:
             else:
                 # clamp, norm and update
                 update = (
-                    update_factor / get_delta(episode, self.args.delta_pow, self.args.const_delta)
+                    update_factor
+                    / get_delta(episode, self.args.delta_pow, self.args.const_delta)
                 ).clamp(-self.args.grad_bound, self.args.grad_bound)
 
                 if norm is not None and norm > self.args.grad_norm:
@@ -141,11 +142,15 @@ def sf_reinforce(env, policy, seed, args, num_trials=10):
     results = []
     norms = []
     two_sided = args.algo.startswith("two_sided")
+    filename = "sf_reinforce_logs.txt"
     if two_sided:
         num_trials = num_trials // 2
+        filename = "two_sided_sf_reinforce.txt"
 
     model = SFPolicy(env, policy, args)
 
+    with open(filename, "+a") as file:
+        print(f"Seed,Time,Episode,Reward", file=file)
     for episode in range(args.iterations):
         result = model.simulate(episode, num_trials)
         # update weights according to the paper
@@ -164,5 +169,6 @@ def sf_reinforce(env, policy, seed, args, num_trials=10):
                 f"Average Reward: {avg:.3f}, delta_pow: {args.delta_pow}, "
                 f"const_delta: {args.const_delta}, signed={args.sign}, norm: {norm_avg:.3f}",
             )
-            # print(f"Seed: {seed}: ", pd.Series(all_updates).describe())
+            with open(filename, "+a") as file:
+                print(f"{seed},{time.time() - start},{episode},{avg}", file=file)
     return results

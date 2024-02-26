@@ -35,7 +35,9 @@ class MyEvalCB(BaseCallback):
         self.seed = seed
         self.start = time.time()
         self.gamma = 0.99
-        
+        with open("ppo.txt", "+a") as file:
+            print(f"Seed,Time,Episode,Reward", file=file)
+
     def evaluate(self) -> float:
         state, _ = self.eval_env.reset()
         done = False
@@ -58,7 +60,8 @@ class MyEvalCB(BaseCallback):
                 f"Seed: {self.seed}, time: {time.time() - self.start}, "
                 f"Step {self.num_timesteps}, Average Reward: {mean_reward}"
             )
-
+            with open("ppo.txt", "+a") as file:
+                print(f"{self.seed},{time.time() - self.start},{self.num_timesteps},{mean_reward}", file=file)
         return True
 
 def run_ppo(algo:str, env_maker: Callable, train_steps: int, seed=0):
