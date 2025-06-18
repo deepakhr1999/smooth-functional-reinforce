@@ -5,10 +5,16 @@ import torch
 import numpy as np
 from gymnasium.spaces import Discrete
 from stable_baselines3 import PPO, A2C
+from sb3_contrib import TRPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import BaseCallback
 from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
+MODULES = {
+    'ppo': PPO,
+    'a2c': A2C,
+    'trpo': TRPO,
+}
 
 class CustomFeatureExtractor(BaseFeaturesExtractor):
     """Convert one-hot feature vector for stable-baselines"""
@@ -71,7 +77,7 @@ def run_ppo(algo:str, env_maker: Callable, train_steps: int, seed=0):
         "features_extractor_class": CustomFeatureExtractor,
         "features_extractor_kwargs": {'features_dim': 6},
     }
-    module = PPO if algo == 'ppo' else A2C
+    module = MODULES[algo]
     model = module("MlpPolicy", vec_env, verbose=1, policy_kwargs=policy_kwargs, device="cpu")
 
     callback = MyEvalCB(n_steps=100, env_maker=env_maker, seed=seed)

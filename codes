@@ -79,3 +79,17 @@ python main.py sf_reinforce large 200000 --alpha 0.02 --grad_norm 50
 
 python main.py sf_reinforce large 200000 --sign --alpha 2e-3
 python main.py two_sided_sf_reinforce large 200000 --sign --alpha 2e-3
+
+
+python main.py two_sided_sf_reinforce tiny 50000 --alpha 0.02 --grad_bound 1.5
+python main.py two_sided_sf_reinforce medium20 150000 --alpha 0.02 --grad_bound 1.5
+python main.py two_sided_sf_reinforce large 200000 --alpha 0.02 --grad_bound 1.5
+
+python main.py sf_reinforce tiny 50000
+
+
+python main.py trpo tiny 50000
+python main.py trpo small 100000
+python main.py trpo medium 150000
+python main.py trpo medium20 150000
+python main.py trpo large 200000

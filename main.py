@@ -24,7 +24,7 @@ def get_dirname(args: argparse.Namespace) -> str:
     """Save directory from config"""
     delta_str = "_signed_" if args.sign else "_"
     if args.delta_pow is None:
-        if args.const_delta != 0.175:
+        if args.const_delta != 0.175 or True:
             delta_str += f"const_delta={args.const_delta}"
     else:
         delta_str += str(args.delta_pow)
@@ -51,7 +51,7 @@ def run_for_seed(seed: int, args: argparse.Namespace):
     def env_maker():
         return CustomGridWorld(**cfg)
 
-    if args.algo in ("ppo", "a2c"):
+    if args.algo in ("ppo", "a2c", "trpo"):
         policy, results = run_ppo(args.algo, env_maker, args.iterations, seed)
     elif args.algo.startswith("reinforce"):
         env = env_maker()
@@ -83,7 +83,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "algo",
-        choices=["reinforce", "sf_reinforce", "two_sided_sf_reinforce", "ppo", "a2c"],
+        choices=["reinforce", "sf_reinforce", "two_sided_sf_reinforce", "ppo", "a2c", "trpo"],
         help="RL algorithm",
     )
     parser.add_argument(
